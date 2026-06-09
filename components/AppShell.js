@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { subscribeToAuth, isFirebaseConfigured } from "@/lib/dbService";
 import Sidebar from "./Sidebar";
 import { Menu, X, AlertTriangle, Loader2 } from "lucide-react";
+import BullLogo from "./BullLogo";
 
 export default function AppShell({ children }) {
   const [user, setUser] = useState(null);
@@ -81,8 +82,11 @@ export default function AppShell({ children }) {
         <button className="menu-btn" onClick={() => setIsMobileOpen(!isMobileOpen)}>
           {isMobileOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
-        <div style={{ fontWeight: 700, fontSize: "1.1rem", background: "var(--accent-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          INVENTARIO
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <BullLogo size={24} />
+          <span style={{ fontWeight: 700, fontSize: "1.1rem", background: "var(--accent-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            INVENTARIO
+          </span>
         </div>
         <div style={{ width: 24 }}></div> {/* spacer */}
       </header>

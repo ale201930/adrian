@@ -22,14 +22,18 @@ export default function ReportesPage() {
   const [entradas, setEntradas] = useState([]);
   const [salidas, setSalidas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("cobrar"); // cobrar, pagar, vendedores
+  const [activeTab, setActiveTab] = useState("cobrar"); // cobrar, pagar, vendedores, ganancias
   const [expandedClients, setExpandedClients] = useState({});
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  // Clear search query when tab changes
+  // Clear search query and dates when tab changes
   useEffect(() => {
     setSearchQuery("");
+    setStartDate("");
+    setEndDate("");
   }, [activeTab]);
 
   const loadHtml2Pdf = () => {
@@ -212,6 +216,98 @@ export default function ReportesPage() {
 
   const totalVendido = sellerSales.reduce((sum, s) => sum + s.totalSales, 0);
 
+  // 4. Ganancias y Pérdidas (Profit & Loss)
+  // Calculate average cost for each (product, unit)
+  const avgCostMap = {};
+  entradas.forEach(ent => {
+    if (ent.items) {
+      ent.items.forEach(item => {
+        if (!item.producto) return;
+        const name = item.producto.trim().toLowerCase();
+        const unit = item.unidad.trim().toLowerCase();
+        const key = `${name}|${unit}`;
+        if (!avgCostMap[key]) {
+          avgCostMap[key] = { totalQty: 0, totalCost: 0 };
+        }
+        avgCostMap[key].totalQty += item.cantidad || 0;
+        avgCostMap[key].totalCost += item.totalItem || 0;
+      });
+    }
+  });
+
+  const getAverageCost = (product, unit) => {
+    if (!product) return 0;
+    const name = product.trim().toLowerCase();
+    const u = unit ? unit.trim().toLowerCase() : "";
+    const key = `${name}|${u}`;
+    const data = avgCostMap[key];
+    if (data && data.totalQty > 0) {
+      return data.totalCost / data.totalQty;
+    }
+    // Fallback: search for any unit of this product
+    for (let k in avgCostMap) {
+      if (k.startsWith(`${name}|`)) {
+        const d = avgCostMap[k];
+        if (d.totalQty > 0) {
+          return d.totalCost / d.totalQty;
+        }
+      }
+    }
+    return 0;
+  };
+
+  const salesPL = salidas.map(sal => {
+    let totalCost = 0;
+    const itemsWithCost = (sal.items || []).map(item => {
+      const avgCost = getAverageCost(item.producto, item.unidad);
+      const costTotal = item.cantidad * avgCost;
+      const profit = item.totalItem - costTotal;
+      const margin = item.totalItem > 0 ? (profit / item.totalItem) * 100 : 0;
+      totalCost += costTotal;
+      return {
+        ...item,
+        avgCost,
+        costTotal,
+        profit,
+        margin
+      };
+    });
+
+    const totalRevenue = sal.totalFactura || 0;
+    const netProfit = totalRevenue - totalCost;
+    const margin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+    return {
+      ...sal,
+      itemsWithCost,
+      totalCost,
+      netProfit,
+      margin
+    };
+  });
+
+  // Filter sales P&L by dates and search query
+  const filteredSalesPL = salesPL.filter(s => {
+    // Search query filter
+    const query = searchQuery.toLowerCase().trim();
+    const matchesQuery = !query || 
+      s.numeroFactura.toLowerCase().includes(query) ||
+      s.clienteName.toLowerCase().includes(query) ||
+      s.vendedorName.toLowerCase().includes(query) ||
+      s.itemsWithCost.some(i => i.producto.toLowerCase().includes(query));
+
+    // Date range filter
+    const matchesStartDate = !startDate || s.fecha >= startDate;
+    const matchesEndDate = !endDate || s.fecha <= endDate;
+
+    return matchesQuery && matchesStartDate && matchesEndDate;
+  }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)); // newest sales first
+
+  const totalRevenuePL = filteredSalesPL.reduce((sum, s) => sum + s.totalFactura, 0);
+  const totalCostPL = filteredSalesPL.reduce((sum, s) => sum + s.totalCost, 0);
+  const totalProfitPL = totalRevenuePL - totalCostPL;
+  const overallMarginPL = totalRevenuePL > 0 ? (totalProfitPL / totalRevenuePL) * 100 : 0;
+
   return (
     <>
       <div className="page-header">
@@ -263,62 +359,127 @@ export default function ReportesPage() {
         >
           Ventas por Vendedor (${totalVendido.toFixed(2)})
         </button>
+        <button 
+          className={`btn ${activeTab === "ganancias" ? "btn-primary" : "btn-secondary"}`}
+          onClick={() => setActiveTab("ganancias")}
+          style={{ borderRadius: "10px 10px 0 0", borderBottom: "none" }}
+        >
+          Ganancias y Pérdidas (${totalProfitPL >= 0 ? "+" : ""}${totalProfitPL.toFixed(2)})
+        </button>
       </div>
 
       {!loading && (
         <div className="no-print" style={{ 
           marginBottom: "1.5rem",
           display: "flex",
-          maxWidth: "400px",
-          position: "relative",
-          alignItems: "center"
+          flexWrap: "wrap",
+          gap: "1rem",
+          alignItems: "center",
+          justifyContent: "space-between"
         }}>
-          <Search size={18} style={{ 
-            position: "absolute", 
-            left: "12px", 
-            color: "var(--text-secondary)",
-            pointerEvents: "none"
-          }} />
-          <input 
-            type="text" 
-            placeholder={
-              activeTab === "cobrar" ? "Buscar por cliente o factura..." : 
-              activeTab === "pagar" ? "Buscar por factura o producto..." : 
-              "Buscar por vendedor..."
-            }
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "0.6rem 2.5rem 0.6rem 2.5rem",
-              borderRadius: "10px",
-              border: "1px solid var(--card-border)",
-              background: "var(--card-bg)",
-              color: "var(--text-primary)",
-              fontSize: "0.9rem",
-              outline: "none",
-              transition: "border-color 0.2s"
-            }}
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery("")}
+          {/* Search bar */}
+          <div style={{ 
+            display: "flex",
+            width: "100%",
+            maxWidth: "360px",
+            position: "relative",
+            alignItems: "center"
+          }}>
+            <Search size={18} style={{ 
+              position: "absolute", 
+              left: "12px", 
+              color: "var(--text-secondary)",
+              pointerEvents: "none"
+            }} />
+            <input 
+              type="text" 
+              placeholder={
+                activeTab === "cobrar" ? "Buscar por cliente o factura..." : 
+                activeTab === "pagar" ? "Buscar por factura o producto..." : 
+                activeTab === "ganancias" ? "Buscar factura, cliente o producto..." :
+                "Buscar por vendedor..."
+              }
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                position: "absolute",
-                right: "12px",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--text-secondary)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 0
+                width: "100%",
+                padding: "0.6rem 2.5rem 0.6rem 2.5rem",
+                borderRadius: "10px",
+                border: "1px solid var(--card-border)",
+                background: "var(--card-bg)",
+                color: "var(--text-primary)",
+                fontSize: "0.9rem",
+                outline: "none",
+                transition: "border-color 0.2s"
               }}
-            >
-              <X size={16} />
-            </button>
-          )}
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery("")}
+                style={{
+                  position: "absolute",
+                  right: "12px",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0
+                }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {/* Date range filters */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Desde:</span>
+              <input 
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{
+                  padding: "0.45rem 0.6rem",
+                  borderRadius: "8px",
+                  border: "1px solid var(--card-border)",
+                  background: "var(--card-bg)",
+                  color: "var(--text-primary)",
+                  fontSize: "0.85rem",
+                  width: "auto"
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Hasta:</span>
+              <input 
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{
+                  padding: "0.45rem 0.6rem",
+                  borderRadius: "8px",
+                  border: "1px solid var(--card-border)",
+                  background: "var(--card-bg)",
+                  color: "var(--text-primary)",
+                  fontSize: "0.85rem",
+                  width: "auto"
+                }}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <button 
+                className="btn btn-secondary btn-sm"
+                onClick={() => { setStartDate(""); setEndDate(""); }}
+                style={{ padding: "0.45rem 0.75rem" }}
+              >
+                Limpiar Fechas
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -565,6 +726,205 @@ export default function ReportesPage() {
               )}
             </div>
           )}
+
+          {/* TAB 4: GANANCIAS Y PÉRDIDAS */}
+          {activeTab === "ganancias" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              {/* Metrics Grid */}
+              <div className="metrics-grid">
+                <div className="card metric-card">
+                  <div className="metric-icon-box success">
+                    <DollarSign size={24} />
+                  </div>
+                  <div className="metric-content">
+                    <h3>Ingresos Totales (Ventas)</h3>
+                    <div className="value" style={{ color: "var(--success)" }}>
+                      ${totalRevenuePL.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card metric-card">
+                  <div className="metric-icon-box danger">
+                    <DollarSign size={24} />
+                  </div>
+                  <div className="metric-content">
+                    <h3>Costos de Compra Estimados</h3>
+                    <div className="value" style={{ color: "var(--danger)" }}>
+                      ${totalCostPL.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card metric-card">
+                  <div className={`metric-icon-box ${totalProfitPL >= 0 ? "success" : "danger"}`}>
+                    {totalProfitPL >= 0 ? <TrendingUp size={24} /> : <AlertCircle size={24} />}
+                  </div>
+                  <div className="metric-content">
+                    <h3>{totalProfitPL >= 0 ? "Ganancia Neta" : "Pérdida Neta"}</h3>
+                    <div className="value" style={{ color: totalProfitPL >= 0 ? "var(--success)" : "var(--danger)" }}>
+                      ${totalProfitPL.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card metric-card">
+                  <div className="metric-icon-box accent">
+                    <BarChart3 size={24} />
+                  </div>
+                  <div className="metric-content">
+                    <h3>Margen de Utilidad</h3>
+                    <div className="value">
+                      {overallMarginPL.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transactions List */}
+              <div className="card">
+                <div className="card-header-flex">
+                  <div>
+                    <h2 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Balance General de Utilidades</h2>
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
+                      Desglose de rentabilidad por cada factura de despacho de mercancía
+                    </p>
+                  </div>
+                </div>
+
+                {filteredSalesPL.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-secondary)" }}>
+                    <Inbox size={32} style={{ color: "var(--text-muted)", marginBottom: "0.5rem" }} />
+                    <p>No se encontraron registros de despachos con los filtros actuales.</p>
+                  </div>
+                ) : (
+                  <div className="table-container">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Factura / Guía</th>
+                          <th>Cliente</th>
+                          <th>Vendedor</th>
+                          <th>Ingreso (Venta)</th>
+                          <th>Costo Compra</th>
+                          <th>Ganancia</th>
+                          <th>Margen</th>
+                          <th style={{ width: "60px" }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSalesPL.map((sal) => {
+                          const isExpanded = expandedClients[sal.id];
+                          const hasProfit = sal.netProfit >= 0;
+                          return (
+                            <React.Fragment key={sal.id}>
+                              <tr 
+                                className="expandable-row"
+                                onClick={() => {
+                                  setExpandedClients(prev => ({
+                                    ...prev,
+                                    [sal.id]: !prev[sal.id]
+                                  }));
+                                }}
+                              >
+                                <td>
+                                  <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                    <Calendar size={14} style={{ color: "var(--text-muted)" }} />
+                                    {sal.fecha}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{ fontWeight: 600 }}>{sal.numeroFactura}</span>
+                                </td>
+                                <td>{sal.clienteName}</td>
+                                <td>{sal.vendedorName}</td>
+                                <td>${sal.totalFactura.toFixed(2)}</td>
+                                <td style={{ color: "var(--text-secondary)" }}>${sal.totalCost.toFixed(2)}</td>
+                                <td style={{ fontWeight: 700, color: hasProfit ? "var(--success)" : "var(--danger)" }}>
+                                  ${sal.netProfit.toFixed(2)}
+                                </td>
+                                <td>
+                                  <span className={`badge ${hasProfit ? "success" : "danger"}`}>
+                                    {sal.margin.toFixed(1)}%
+                                  </span>
+                                </td>
+                                <td>
+                                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                </td>
+                              </tr>
+                              {isExpanded && (
+                                <tr>
+                                  <td colSpan="9" style={{ background: "rgba(0,0,0,0.05)", padding: "1.25rem" }}>
+                                    <div className="expanded-details-box">
+                                      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "0.5rem" }}>
+                                        Detalle de Costos e Ingresos por Producto:
+                                      </p>
+                                      <table className="invoice-items-table">
+                                        <thead>
+                                          <tr>
+                                            <th>Producto</th>
+                                            <th>Cantidad</th>
+                                            <th>Costo Prom. Compra</th>
+                                            <th>Precio de Venta</th>
+                                            <th>Costo Total</th>
+                                            <th>Venta Total</th>
+                                            <th>Ganancia Ítem</th>
+                                            <th>Margen</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {sal.itemsWithCost.map((item, itemIdx) => {
+                                            const itemHasProfit = item.profit >= 0;
+                                            return (
+                                              <tr key={itemIdx}>
+                                                <td style={{ fontWeight: 600 }}>{item.producto}</td>
+                                                <td>{item.cantidad} {item.unidad}(s)</td>
+                                                <td>
+                                                  {item.avgCost > 0 ? (
+                                                    `$${item.avgCost.toFixed(2)}`
+                                                  ) : (
+                                                    <span style={{ color: "var(--warning)", fontWeight: 500 }} title="Sin facturas de compra registradas">
+                                                      $0.00 ⚠️
+                                                    </span>
+                                                  )}
+                                                </td>
+                                                <td>${item.precioUnitario.toFixed(2)}</td>
+                                                <td>${item.costTotal.toFixed(2)}</td>
+                                                <td>${item.totalItem.toFixed(2)}</td>
+                                                <td style={{ fontWeight: 700, color: itemHasProfit ? "var(--success)" : "var(--danger)" }}>
+                                                  ${item.profit.toFixed(2)}
+                                                </td>
+                                                <td>
+                                                  <span className={`badge ${itemHasProfit ? "success" : "danger"}`} style={{ fontSize: "0.75rem" }}>
+                                                    {item.margin.toFixed(1)}%
+                                                  </span>
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                      {sal.itemsWithCost.some(i => i.avgCost === 0) && (
+                                        <p style={{ fontSize: "0.75rem", color: "var(--warning)", display: "flex", alignItems: "center", gap: "4px", marginTop: "0.5rem" }}>
+                                          <AlertCircle size={12} />
+                                          <span>Nota: El símbolo ⚠️ indica que el producto no tiene entradas registradas de compra, por lo que su costo se asume como $0.00 para la estimación.</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -590,6 +950,7 @@ export default function ReportesPage() {
                   {activeTab === "cobrar" && "Control de Cuentas por Cobrar — Clientes"}
                   {activeTab === "pagar" && "Control de Cuentas por Pagar — Proveedores"}
                   {activeTab === "vendedores" && "Reporte de Rendimiento — Ventas por Vendedor"}
+                  {activeTab === "ganancias" && "Reporte de Ganancias y Pérdidas (P&L)"}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -609,6 +970,7 @@ export default function ReportesPage() {
                   {activeTab === "cobrar" && `$${totalCobrar.toFixed(2)}`}
                   {activeTab === "pagar" && `$${totalPagar.toFixed(2)}`}
                   {activeTab === "vendedores" && `$${totalVendido.toFixed(2)}`}
+                  {activeTab === "ganancias" && `$${totalProfitPL.toFixed(2)} (Utilidad)`}
                 </span>
               </span>
               <span style={{ fontSize: "11px", color: "#cbd5e1" }}>
@@ -617,8 +979,17 @@ export default function ReportesPage() {
                   {activeTab === "cobrar" && clientDebts.length}
                   {activeTab === "pagar" && supplierDebts.length}
                   {activeTab === "vendedores" && sellerSales.length}
+                  {activeTab === "ganancias" && filteredSalesPL.length}
                 </span>
               </span>
+              {(startDate || endDate) && (
+                <span style={{ fontSize: "11px", color: "#cbd5e1" }}>
+                  <span style={{ color: "#94a3b8" }}>Período: </span>
+                  <span style={{ color: "#ffffff", fontWeight: "700" }}>
+                    {startDate || "Inicio"} al {endDate || "Fin"}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -757,8 +1128,65 @@ export default function ReportesPage() {
                     </div>
                   </div>
                 )}
+            {/* GANANCIAS Y PÉRDIDAS */}
+            {activeTab === "ganancias" && (
+              <div>
+                {filteredSalesPL.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>No hay registros de utilidades para este período.</p>
+                ) : (
+                  <div style={{ border: "1px solid #e2e8f0", borderRadius: "6px", overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#06b6d4" }}>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Fecha</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Factura #</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Cliente</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Venta ($)</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Costo ($)</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Utilidad ($)</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Margen</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSalesPL.map((sal, idx) => (
+                          <tr key={sal.id} style={{ borderBottom: idx === filteredSalesPL.length - 1 ? "none" : "1px solid #f1f5f9", backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc" }}>
+                            <td style={{ padding: "7px 14px", color: "#475569" }}>{sal.fecha}</td>
+                            <td style={{ padding: "7px 14px", color: "#0f172a", fontWeight: "600" }}>{sal.numeroFactura}</td>
+                            <td style={{ padding: "7px 14px", color: "#475569" }}>{sal.clienteName}</td>
+                            <td style={{ padding: "7px 14px", color: "#475569", textAlign: "right" }}>${sal.totalFactura.toFixed(2)}</td>
+                            <td style={{ padding: "7px 14px", color: "#64748b", textAlign: "right" }}>${sal.totalCost.toFixed(2)}</td>
+                            <td style={{ padding: "7px 14px", color: sal.netProfit >= 0 ? "#166534" : "#dc2626", fontWeight: "700", textAlign: "right" }}>
+                              ${sal.netProfit.toFixed(2)}
+                            </td>
+                            <td style={{ padding: "7px 14px", color: sal.netProfit >= 0 ? "#166534" : "#dc2626", fontWeight: "600", textAlign: "right" }}>
+                              {sal.margin.toFixed(1)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {filteredSalesPL.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "15px", gap: "10px" }}>
+                    <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "8px 14px", textAlign: "right" }}>
+                      <div style={{ fontSize: "9px", color: "#64748b", fontWeight: "600" }}>Ingreso Acumulado</div>
+                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#0f172a" }}>${totalRevenuePL.toFixed(2)}</div>
+                    </div>
+                    <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "8px 14px", textAlign: "right" }}>
+                      <div style={{ fontSize: "9px", color: "#64748b", fontWeight: "600" }}>Costo Acumulado</div>
+                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#64748b" }}>${totalCostPL.toFixed(2)}</div>
+                    </div>
+                    <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "8px 14px", textAlign: "right" }}>
+                      <div style={{ fontSize: "9px", color: "#64748b", fontWeight: "600" }}>Ganancia Neta</div>
+                      <div style={{ fontSize: "14px", fontWeight: "800", color: totalProfitPL >= 0 ? "#166534" : "#dc2626" }}>${totalProfitPL.toFixed(2)} ({overallMarginPL.toFixed(1)}%)</div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+          </div>
+        )}
 
           </div>
 

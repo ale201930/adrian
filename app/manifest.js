@@ -5,8 +5,8 @@ export default function manifest() {
     description: "Sistema cronológico de control de inventarios, entradas, salidas, deudas y abonos.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#6366f1",
+    background_color: "#0e0505",
+    theme_color: "#ff5d00",
     icons: [
       {
         src: "/icon-192.png",

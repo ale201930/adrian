@@ -2,7 +2,8 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { loginUser, resetPassword, isFirebaseConfigured } from "@/lib/dbService";
-import { KeyRound, User, AlertCircle, Warehouse, CheckCircle, Eye, EyeOff } from "lucide-react";
+import { KeyRound, User, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react";
+import BullLogo from "@/components/BullLogo";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -57,7 +58,7 @@ export default function Login() {
     <div className="login-container">
       <div className="card login-card">
         <div className="login-logo">
-          <Warehouse size={48} style={{ stroke: "#a855f7" }} />
+          <BullLogo size={130} />
           <h1 className="login-logo-text">INVENTARIO</h1>
           <p className="login-subtitle">Sistema de Control y Saldos</p>
         </div>

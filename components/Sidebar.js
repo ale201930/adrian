@@ -8,9 +8,9 @@ import {
   ArrowUpCircle, 
   Package, 
   BarChart3, 
-  LogOut,
-  Warehouse
+  LogOut
 } from "lucide-react";
+import BullLogo from "@/components/BullLogo";
 import { logoutUser } from "@/lib/dbService";
 
 export default function Sidebar({ user, isMobileOpen, setIsMobileOpen }) {
@@ -78,7 +78,7 @@ export default function Sidebar({ user, isMobileOpen, setIsMobileOpen }) {
   return (
     <aside className={`sidebar ${isMobileOpen ? "open" : ""}`}>
       <div className="sidebar-logo">
-        <Warehouse size={28} />
+        <BullLogo size={36} />
         <span>INVENTARIO</span>
       </div>
 
