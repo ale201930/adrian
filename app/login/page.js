@@ -2,11 +2,12 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { loginUser, resetPassword, isFirebaseConfigured } from "@/lib/dbService";
-import { KeyRound, User, AlertCircle, Warehouse, CheckCircle } from "lucide-react";
+import { KeyRound, User, AlertCircle, Warehouse, CheckCircle, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,9 +37,15 @@ export default function Login() {
     setSuccessMessage("");
     setLoading(true);
 
+    if (!email.trim()) {
+      setError("Por favor ingresa tu usuario o correo electrónico.");
+      setLoading(false);
+      return;
+    }
+
     try {
       await resetPassword(email);
-      setSuccessMessage("¡Enlace de recuperación enviado! Revisa la bandeja de entrada de tu correo.");
+      setSuccessMessage("¡Enlace de recuperación enviado! Revisa la bandeja de entrada de tu correo (y la carpeta de spam).");
     } catch (err) {
       setError(err.message || "Error al enviar el enlace de recuperación");
     } finally {
@@ -67,7 +74,7 @@ export default function Login() {
             {error && (
               <div style={{
                 display: "flex",
-                alignItems: "center",
+                alignItems: "flex-start",
                 gap: "0.5rem",
                 background: "rgba(239, 68, 68, 0.1)",
                 border: "1px solid rgba(239, 68, 68, 0.2)",
@@ -76,7 +83,7 @@ export default function Login() {
                 color: "var(--danger)",
                 fontSize: "0.85rem"
               }}>
-                <AlertCircle size={16} />
+                <AlertCircle size={16} style={{ marginTop: "2px", flexShrink: 0 }} />
                 <span>{error}</span>
               </div>
             )}
@@ -84,7 +91,7 @@ export default function Login() {
             {successMessage && (
               <div style={{
                 display: "flex",
-                alignItems: "center",
+                alignItems: "flex-start",
                 gap: "0.5rem",
                 background: "rgba(16, 185, 129, 0.1)",
                 border: "1px solid rgba(16, 185, 129, 0.2)",
@@ -93,17 +100,17 @@ export default function Login() {
                 color: "var(--success)",
                 fontSize: "0.85rem"
               }}>
-                <CheckCircle size={16} />
+                <CheckCircle size={16} style={{ marginTop: "2px", flexShrink: 0 }} />
                 <span>{successMessage}</span>
               </div>
             )}
 
             <div className="form-group">
-              <label htmlFor="email">Usuario o Correo Electrónico</label>
+              <label htmlFor="recover-email">Usuario o Correo Electrónico</label>
               <div style={{ position: "relative" }}>
                 <User size={18} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
                 <input
-                  id="email"
+                  id="recover-email"
                   type="text"
                   placeholder="Ej. alexander almaguer"
                   value={email}
@@ -112,6 +119,9 @@ export default function Login() {
                   required
                 />
               </div>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                Ingresa el mismo usuario o correo con el que inicias sesión.
+              </p>
             </div>
 
             <button
@@ -177,13 +187,35 @@ export default function Login() {
                 <KeyRound size={18} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  style={{ paddingLeft: "40px" }}
+                  style={{ paddingLeft: "40px", paddingRight: "44px" }}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    cursor: "pointer",
+                    padding: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "color 0.2s"
+                  }}
+                  title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 

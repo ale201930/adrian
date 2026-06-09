@@ -63,6 +63,7 @@ button, input, select, textarea {
 .app-container {
   display: flex;
   min-height: 100vh;
+  min-width: 320px;
 }
 
 .main-content {
@@ -74,12 +75,14 @@ button, input, select, textarea {
   flex-direction: column;
   gap: 2rem;
   transition: margin-left var(--transition-normal);
+  /* Prevent content from being too narrow */
+  min-width: 0;
 }
 
 @media (max-width: 992px) {
   .main-content {
     margin-left: 0;
-    padding: 1.5rem;
+    padding: 1.25rem;
     padding-top: calc(var(--header-height) + 1rem);
   }
 }
@@ -437,6 +440,12 @@ tr:hover td {
   gap: 1rem;
 }
 
+@media (max-width: 640px) {
+  .form-group.inline-two {
+    grid-template-columns: 1fr;
+  }
+}
+
 label {
   font-size: 0.85rem;
   font-weight: 500;
@@ -453,6 +462,13 @@ input, select, textarea {
   outline: none;
   font-size: 0.95rem;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+select option {
+  background-color: #111827; /* Fallback for native dropdown menus */
+  background-color: var(--bg-secondary);
+  color: #f3f4f6; /* Fallback for native dropdown menus */
+  color: var(--text-primary);
 }
 
 input:focus, select:focus, textarea:focus {
@@ -762,6 +778,36 @@ input:focus, select:focus, textarea:focus {
   border-radius: 8px;
   border: 1px dashed var(--card-border);
   margin-top: 0.5rem;
+}
+
+/* Name truncation in table cells (clients, vendors) */
+.cell-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 160px;
+  min-width: 0;
+}
+
+.cell-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  cursor: default;
+}
+
+.col-name {
+  max-width: 180px;
+}
+
+/* Abono table action buttons */
+.abono-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
 }
 
 /* Print stylesheet for beautiful PDF exports */

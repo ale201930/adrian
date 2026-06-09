@@ -5,6 +5,8 @@ import {
   addEntrada, 
   getAbonosEntradas, 
   addAbonoEntrada, 
+  updateAbonoEntrada,
+  deleteAbonoEntrada,
   updateEntradaTotal,
   deleteEntrada
 } from "@/lib/dbService";
@@ -22,7 +24,8 @@ import {
   Search,
   CheckCircle,
   HelpCircle,
-  AlertTriangle
+  AlertTriangle,
+  Pencil
 } from "lucide-react";
 
 export default function EntradasPage() {
@@ -44,6 +47,16 @@ export default function EntradasPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [entradaToDelete, setEntradaToDelete] = useState(null);
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
+  // Edit/Delete Abono State
+  const [showEditAbonoModal, setShowEditAbonoModal] = useState(false);
+  const [abonoToEdit, setAbonoToEdit] = useState(null);
+  const [editAbonoFecha, setEditAbonoFecha] = useState("");
+  const [editAbonoRef, setEditAbonoRef] = useState("");
+  const [editAbonoVES, setEditAbonoVES] = useState("");
+  const [editAbonoUSD, setEditAbonoUSD] = useState("");
+  const [showDeleteAbonoConfirm, setShowDeleteAbonoConfirm] = useState(false);
+  const [abonoToDelete, setAbonoToDelete] = useState(null);
 
   // New Entrada Form State
   const [newInvoiceNumber, setNewInvoiceNumber] = useState("");
@@ -245,6 +258,59 @@ export default function EntradasPage() {
   const handleDeleteEntrada = (entrada) => {
     setEntradaToDelete(entrada);
     setShowDeleteConfirm(true);
+  };
+
+  const handleOpenEditAbono = (abono) => {
+    setAbonoToEdit(abono);
+    setEditAbonoFecha(abono.fecha);
+    setEditAbonoRef(abono.referencia || "");
+    setEditAbonoVES(abono.montoVES?.toString() || "");
+    setEditAbonoUSD(abono.montoUSD?.toString() || "");
+    setShowEditAbonoModal(true);
+  };
+
+  const handleEditAbonoEntradaSubmit = async (e) => {
+    e.preventDefault();
+    const usd = parseFloat(editAbonoUSD) || 0;
+    if (usd <= 0) { showToast("El monto debe ser mayor a 0", "danger"); return; }
+    setLoading(true);
+    try {
+      await updateAbonoEntrada(abonoToEdit.id, abonoToEdit.entradaId, {
+        fecha: editAbonoFecha,
+        referencia: editAbonoRef,
+        montoVES: parseFloat(editAbonoVES) || 0,
+        montoUSD: usd,
+      });
+      setShowEditAbonoModal(false);
+      setAbonoToEdit(null);
+      await loadData();
+      showToast("Abono actualizado con éxito.");
+    } catch (err) {
+      showToast("Error al editar el abono: " + err.message, "danger");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAbono = (abono) => {
+    setAbonoToDelete(abono);
+    setShowDeleteAbonoConfirm(true);
+  };
+
+  const handleConfirmDeleteAbono = async () => {
+    if (!abonoToDelete) return;
+    setLoading(true);
+    try {
+      await deleteAbonoEntrada(abonoToDelete.id, abonoToDelete.entradaId, abonoToDelete.montoUSD);
+      setShowDeleteAbonoConfirm(false);
+      setAbonoToDelete(null);
+      await loadData();
+      showToast("Abono eliminado. El saldo fue actualizado.");
+    } catch (err) {
+      showToast("Error al eliminar el abono: " + err.message, "danger");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleConfirmDeleteEntrada = async () => {
@@ -481,6 +547,7 @@ export default function EntradasPage() {
                                       <th>Referencia</th>
                                       <th>Monto Bs. (Informativo)</th>
                                       <th>Monto USD ($)</th>
+                                      <th style={{ textAlign: "center" }}>Acciones</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -490,6 +557,26 @@ export default function EntradasPage() {
                                         <td style={{ fontSize: "0.8rem" }}>{ab.referencia || "Sin ref."}</td>
                                         <td style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Bs. {ab.montoVES?.toLocaleString()}</td>
                                         <td style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--success)" }}>${ab.montoUSD?.toFixed(2)}</td>
+                                        <td style={{ textAlign: "center" }}>
+                                          <div className="abono-actions">
+                                            <button
+                                              className="btn-icon"
+                                              style={{ background: "none", border: "none", color: "var(--accent-light)", cursor: "pointer", padding: "4px" }}
+                                              onClick={(e) => { e.stopPropagation(); handleOpenEditAbono(ab); }}
+                                              title="Editar este abono"
+                                            >
+                                              <Pencil size={13} />
+                                            </button>
+                                            <button
+                                              className="btn-icon"
+                                              style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", padding: "4px" }}
+                                              onClick={(e) => { e.stopPropagation(); handleDeleteAbono(ab); }}
+                                              title="Eliminar este abono"
+                                            >
+                                              <Trash2 size={13} />
+                                            </button>
+                                          </div>
+                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -727,6 +814,63 @@ export default function EntradasPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL EDITAR ABONO ENTRADA --- */}
+      {showEditAbonoModal && abonoToEdit && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "420px" }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Editar Abono — Factura {abonoToEdit.numeroFactura}</h2>
+              <button className="close-btn" onClick={() => setShowEditAbonoModal(false)}><ChevronDown size={20} /></button>
+            </div>
+            <form onSubmit={handleEditAbonoEntradaSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label htmlFor="eabDate">Fecha del Abono</label>
+                  <input id="eabDate" type="date" value={editAbonoFecha} onChange={(e) => setEditAbonoFecha(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="eabUSD">Monto en Dólares ($)</label>
+                  <input id="eabUSD" type="number" step="any" min="0.01" value={editAbonoUSD} onChange={(e) => setEditAbonoUSD(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="eabVES">Monto en Bolívares (Informativo)</label>
+                  <input id="eabVES" type="number" step="any" placeholder="Opcional" value={editAbonoVES} onChange={(e) => setEditAbonoVES(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="eabRef">Referencia / Banco</label>
+                  <input id="eabRef" type="text" placeholder="Ej. Transf. #1234" value={editAbonoRef} onChange={(e) => setEditAbonoRef(e.target.value)} required />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditAbonoModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? "Guardando..." : "Guardar Cambios"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL CONFIRMAR ELIMINAR ABONO ENTRADA --- */}
+      {showDeleteAbonoConfirm && abonoToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "400px", padding: "2rem", textAlign: "center" }}>
+            <div style={{ display: "inline-flex", padding: "1rem", background: "rgba(239, 68, 68, 0.1)", borderRadius: "50%", color: "var(--danger)", marginBottom: "1.25rem" }}>
+              <AlertTriangle size={40} className="pulse-animation" />
+            </div>
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.75rem" }}>¿Eliminar Abono?</h2>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.5", marginBottom: "1.5rem" }}>
+              Eliminarás el abono de <strong style={{ color: "var(--success)" }}>${abonoToDelete.montoUSD?.toFixed(2)}</strong> de la factura <strong>{abonoToDelete.numeroFactura}</strong>. El saldo pendiente se incrementará.
+            </p>
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+              <button type="button" className="btn btn-secondary" onClick={() => { setShowDeleteAbonoConfirm(false); setAbonoToDelete(null); }} style={{ flex: 1 }}>Cancelar</button>
+              <button type="button" className="btn btn-danger" onClick={handleConfirmDeleteAbono} style={{ flex: 1, background: "var(--danger)", borderColor: "var(--danger)", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }} disabled={loading}>
+                {loading ? "Eliminando..." : "Sí, Eliminar"}
+              </button>
+            </div>
           </div>
         </div>
       )}

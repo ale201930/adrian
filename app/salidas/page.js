@@ -6,8 +6,10 @@ import {
   getAbonosSalidas, 
   addAbonoSalida, 
   updateSalidaTotal,
+  updateAbonoSalida,
   getEntradas,
-  deleteSalida
+  deleteSalida,
+  deleteAbonoSalida
 } from "@/lib/dbService";
 import { 
   Plus, 
@@ -23,7 +25,8 @@ import {
   CheckCircle,
   User,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Pencil
 } from "lucide-react";
 
 export default function SalidasPage() {
@@ -44,6 +47,14 @@ export default function SalidasPage() {
   // Custom UI notification states
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [salidaToDelete, setSalidaToDelete] = useState(null);
+  const [showDeleteAbonoConfirm, setShowDeleteAbonoConfirm] = useState(false);
+  const [abonoToDelete, setAbonoToDelete] = useState(null);
+  const [showEditAbonoModal, setShowEditAbonoModal] = useState(false);
+  const [abonoToEdit, setAbonoToEdit] = useState(null);
+  const [editAbonoFecha, setEditAbonoFecha] = useState("");
+  const [editAbonoRef, setEditAbonoRef] = useState("");
+  const [editAbonoVES, setEditAbonoVES] = useState("");
+  const [editAbonoUSD, setEditAbonoUSD] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
   // New Salida Form State
@@ -71,6 +82,12 @@ export default function SalidasPage() {
   const [allProducts, setAllProducts] = useState([]);
   const [activeItemIndex, setActiveItemIndex] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Registered clients and sellers for dropdowns
+  const [registeredClients, setRegisteredClients] = useState([]);
+  const [registeredSellers, setRegisteredSellers] = useState([]);
+  const [newClientInput, setNewClientInput] = useState("");
+  const [newSellerInput, setNewSellerInput] = useState("");
 
   useEffect(() => {
     loadData();
@@ -103,6 +120,17 @@ export default function SalidasPage() {
         }
       });
       setAllProducts(Array.from(products));
+
+      // Collect registered clients and sellers from existing salidas
+      const clients = new Set();
+      const sellers = new Set();
+      salList.forEach(s => {
+        if (s.clienteName?.trim()) clients.add(s.clienteName.trim());
+        if (s.vendedorName?.trim()) sellers.add(s.vendedorName.trim());
+      });
+      setRegisteredClients(Array.from(clients).sort());
+      setRegisteredSellers(Array.from(sellers).sort());
+
     } catch (e) {
       console.error(e);
     } finally {
@@ -117,22 +145,22 @@ export default function SalidasPage() {
     }));
   };
 
-  // Dynamic row changes
+  // Dynamic row changes — fix: editing totalItem only updates totalItem (not precioUnitario displayed)
   const handleItemChange = (index, field, value) => {
     const updated = [...newItems];
+    updated[index] = { ...updated[index] };
     updated[index][field] = value;
 
     if (field === "cantidad" || field === "precioUnitario") {
+      // cantidad or price changed → recalculate total
       const qty = parseFloat(updated[index].cantidad) || 0;
       const price = parseFloat(updated[index].precioUnitario) || 0;
       updated[index].totalItem = parseFloat((qty * price).toFixed(2));
     } else if (field === "totalItem") {
+      // totalItem changed → only update total, do NOT change precioUnitario
       const total = parseFloat(value) || 0;
-      const qty = parseFloat(updated[index].cantidad) || 0;
       updated[index].totalItem = total;
-      if (qty > 0) {
-        updated[index].precioUnitario = parseFloat((total / qty).toFixed(4));
-      }
+      // Do NOT modify precioUnitario here to avoid the bug
     }
     setNewItems(updated);
   };
@@ -151,24 +179,29 @@ export default function SalidasPage() {
   };
 
   // Total invoice calculations
-  const calculatedSubtotal = newItems.reduce((sum, item) => sum + (item.totalItem || 0), 0);
+  const calculatedSubtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.totalItem) || 0), 0);
   const finalInvoiceTotal = customTotalChecked 
     ? (parseFloat(customTotalValue) || 0) 
     : calculatedSubtotal;
 
   const handleAddSalidaSubmit = async (e) => {
     e.preventDefault();
-    if (!newClientName.trim() || !newSellerName.trim()) {
-      alert("Por favor ingresa el cliente y el vendedor");
-      return;
-    }
 
     try {
+      // Resolve actual client/seller names
+      const resolvedClient = newClientName === "__nuevo__" ? newClientInput.trim() : newClientName.trim();
+      const resolvedSeller = newSellerName === "__nuevo__" ? newSellerInput.trim() : newSellerName.trim();
+
+      if (!resolvedClient || !resolvedSeller) {
+        alert("Por favor ingresa el cliente y el vendedor");
+        return;
+      }
+
       const invoiceData = {
         numeroFactura: newInvoiceNumber || "DESP-" + Math.floor(1000 + Math.random() * 9000),
         fecha: newDate,
-        clienteName: newClientName.trim(),
-        vendedorName: newSellerName.trim(),
+        clienteName: resolvedClient,
+        vendedorName: resolvedSeller,
         totalFactura: finalInvoiceTotal,
         items: newItems.map(item => ({
           ...item,
@@ -192,6 +225,8 @@ export default function SalidasPage() {
     setNewDate(new Date().toISOString().split("T")[0]);
     setNewClientName("");
     setNewSellerName("");
+    setNewClientInput("");
+    setNewSellerInput("");
     setNewItems([{ producto: "", cantidad: 1, unidad: "bulto", precioUnitario: 0, totalItem: 0 }]);
     setCustomTotalChecked(false);
     setCustomTotalValue("");
@@ -297,6 +332,60 @@ export default function SalidasPage() {
       showToast("Factura/Despacho de salida eliminado con éxito");
     } catch (err) {
       showToast("Error al eliminar la salida: " + err.message, "danger");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete abono handlers
+  const handleDeleteAbono = (abono) => {
+    setAbonoToDelete(abono);
+    setShowDeleteAbonoConfirm(true);
+  };
+
+  const handleConfirmDeleteAbono = async () => {
+    if (!abonoToDelete) return;
+    setLoading(true);
+    try {
+      await deleteAbonoSalida(abonoToDelete.id, abonoToDelete.clienteName, abonoToDelete.montoUSD);
+      setShowDeleteAbonoConfirm(false);
+      setAbonoToDelete(null);
+      await loadData();
+      showToast("Abono eliminado con éxito. El saldo del cliente fue actualizado.");
+    } catch (err) {
+      showToast("Error al eliminar el abono: " + err.message, "danger");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenEditAbono = (abono) => {
+    setAbonoToEdit(abono);
+    setEditAbonoFecha(abono.fecha);
+    setEditAbonoRef(abono.referencia || "");
+    setEditAbonoVES(abono.montoVES?.toString() || "");
+    setEditAbonoUSD(abono.montoUSD?.toString() || "");
+    setShowEditAbonoModal(true);
+  };
+
+  const handleEditAbonoSubmit = async (e) => {
+    e.preventDefault();
+    const usd = parseFloat(editAbonoUSD) || 0;
+    if (usd <= 0) { showToast("El monto debe ser mayor a 0", "danger"); return; }
+    setLoading(true);
+    try {
+      await updateAbonoSalida(abonoToEdit.id, abonoToEdit.clienteName, {
+        fecha: editAbonoFecha,
+        referencia: editAbonoRef,
+        montoVES: parseFloat(editAbonoVES) || 0,
+        montoUSD: usd,
+      });
+      setShowEditAbonoModal(false);
+      setAbonoToEdit(null);
+      await loadData();
+      showToast("Abono actualizado con éxito.");
+    } catch (err) {
+      showToast("Error al editar el abono: " + err.message, "danger");
     } finally {
       setLoading(false);
     }
@@ -440,12 +529,14 @@ export default function SalidasPage() {
                           </span>
                         </td>
                         <td>
-                          <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <User size={14} style={{ color: "var(--text-muted)" }} />
-                            {sal.clienteName}
-                          </span>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", maxWidth: "160px", width: "100%" }}>
+                            <User size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }} title={sal.clienteName}>{sal.clienteName}</span>
+                          </div>
                         </td>
-                        <td>{sal.vendedorName}</td>
+                        <td>
+                          <span style={{ display: "block", maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }} title={sal.vendedorName}>{sal.vendedorName}</span>
+                        </td>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                             <span>${(sal.totalFactura || 0).toFixed(2)}</span>
@@ -540,6 +631,7 @@ export default function SalidasPage() {
                                       <th>Referencia de Transacción</th>
                                       <th>Monto Bs. (Informativo)</th>
                                       <th>Monto USD ($)</th>
+                                      <th style={{ textAlign: "center" }}>Acciones</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -551,6 +643,26 @@ export default function SalidasPage() {
                                           <td style={{ fontSize: "0.8rem" }}>{ab.referencia || "Sin ref."}</td>
                                           <td style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Bs. {ab.montoVES?.toLocaleString()}</td>
                                           <td style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--success)" }}>${ab.montoUSD?.toFixed(2)}</td>
+                                          <td style={{ textAlign: "center" }}>
+                                            <div className="abono-actions">
+                                              <button
+                                                className="btn-icon"
+                                                style={{ background: "none", border: "none", color: "var(--accent-light)", cursor: "pointer", padding: "4px" }}
+                                                onClick={(e) => { e.stopPropagation(); handleOpenEditAbono(ab); }}
+                                                title="Editar este abono"
+                                              >
+                                                <Pencil size={13} />
+                                              </button>
+                                              <button
+                                                className="btn-icon"
+                                                style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", padding: "4px" }}
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteAbono(ab); }}
+                                                title="Eliminar este abono"
+                                              >
+                                                <Trash2 size={13} />
+                                              </button>
+                                            </div>
+                                          </td>
                                         </tr>
                                       ))
                                     }
@@ -606,25 +718,99 @@ export default function SalidasPage() {
                 <div className="form-group inline-two">
                   <div className="form-group">
                     <label htmlFor="salClient">Nombre del Cliente</label>
-                    <input 
-                      id="salClient" 
-                      type="text" 
-                      placeholder="Ej. Distribuidora Gómez" 
-                      value={newClientName} 
-                      onChange={(e) => setNewClientName(e.target.value)} 
-                      required 
-                    />
+                    {registeredClients.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                        <select
+                          id="salClientSelect"
+                          value={newClientName}
+                          onChange={(e) => setNewClientName(e.target.value)}
+                        >
+                          <option value="">-- Seleccionar cliente registrado --</option>
+                          {registeredClients.map((c, i) => (
+                            <option key={i} value={c}>{c}</option>
+                          ))}
+                          <option value="__nuevo__">+ Ingresar nuevo cliente...</option>
+                        </select>
+                        {newClientName === "__nuevo__" && (
+                          <input
+                            id="salClient"
+                            type="text"
+                            placeholder="Nombre del nuevo cliente"
+                            value={newClientInput}
+                            onChange={(e) => setNewClientInput(e.target.value)}
+                            required
+                            autoFocus
+                          />
+                        )}
+                        {newClientName !== "__nuevo__" && newClientName === "" && (
+                          <input
+                            id="salClientFallback"
+                            type="text"
+                            placeholder="O escribe el nombre del cliente"
+                            value={newClientName}
+                            onChange={(e) => setNewClientName(e.target.value)}
+                            required
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <input 
+                        id="salClient" 
+                        type="text" 
+                        placeholder="Ej. Distribuidora Gómez" 
+                        value={newClientName} 
+                        onChange={(e) => setNewClientName(e.target.value)} 
+                        required 
+                      />
+                    )}
                   </div>
                   <div className="form-group">
                     <label htmlFor="salSeller">Nombre del Vendedor</label>
-                    <input 
-                      id="salSeller" 
-                      type="text" 
-                      placeholder="Ej. Carlos Pérez" 
-                      value={newSellerName} 
-                      onChange={(e) => setNewSellerName(e.target.value)} 
-                      required 
-                    />
+                    {registeredSellers.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                        <select
+                          id="salSellerSelect"
+                          value={newSellerName}
+                          onChange={(e) => setNewSellerName(e.target.value)}
+                        >
+                          <option value="">-- Seleccionar vendedor registrado --</option>
+                          {registeredSellers.map((s, i) => (
+                            <option key={i} value={s}>{s}</option>
+                          ))}
+                          <option value="__nuevo__">+ Ingresar nuevo vendedor...</option>
+                        </select>
+                        {newSellerName === "__nuevo__" && (
+                          <input
+                            id="salSeller"
+                            type="text"
+                            placeholder="Nombre del nuevo vendedor"
+                            value={newSellerInput}
+                            onChange={(e) => setNewSellerInput(e.target.value)}
+                            required
+                            autoFocus
+                          />
+                        )}
+                        {newSellerName !== "__nuevo__" && newSellerName === "" && (
+                          <input
+                            id="salSellerFallback"
+                            type="text"
+                            placeholder="O escribe el nombre del vendedor"
+                            value={newSellerName}
+                            onChange={(e) => setNewSellerName(e.target.value)}
+                            required
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <input 
+                        id="salSeller" 
+                        type="text" 
+                        placeholder="Ej. Carlos Pérez" 
+                        value={newSellerName} 
+                        onChange={(e) => setNewSellerName(e.target.value)} 
+                        required 
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -955,7 +1141,7 @@ export default function SalidasPage() {
         </div>
       )}
 
-      {/* --- CUSTOM DELETE CONFIRMATION MODAL --- */}
+      {/* --- CUSTOM DELETE CONFIRMATION MODAL (Salida) --- */}
       {showDeleteConfirm && salidaToDelete && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: "400px", padding: "2rem", textAlign: "center" }}>
@@ -1002,6 +1188,93 @@ export default function SalidasPage() {
                 {loading ? "Eliminando..." : "Sí, Eliminar"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- CUSTOM DELETE ABONO CONFIRMATION MODAL --- */}
+      {showDeleteAbonoConfirm && abonoToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "400px", padding: "2rem", textAlign: "center" }}>
+            <div style={{ display: "inline-flex", padding: "1rem", background: "rgba(239, 68, 68, 0.1)", borderRadius: "50%", color: "var(--danger)", marginBottom: "1.25rem" }}>
+              <AlertTriangle size={40} className="pulse-animation" />
+            </div>
+            
+            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "0.75rem", color: "var(--text-primary)" }}>
+              ¿Eliminar Abono?
+            </h2>
+            
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.5", marginBottom: "1.5rem" }}>
+              Eliminarás el abono de <strong style={{ color: "var(--success)" }}>${abonoToDelete.montoUSD?.toFixed(2)}</strong> del cliente <strong style={{ color: "var(--text-primary)" }}>{abonoToDelete.clienteName}</strong>.
+              El saldo adeudado del cliente será incrementado nuevamente.
+            </p>
+            
+            <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setShowDeleteAbonoConfirm(false);
+                  setAbonoToDelete(null);
+                }}
+                style={{ flex: 1 }}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                onClick={handleConfirmDeleteAbono}
+                style={{ 
+                  flex: 1, 
+                  background: "var(--danger)", 
+                  borderColor: "var(--danger)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem"
+                }}
+                disabled={loading}
+              >
+                {loading ? "Eliminando..." : "Sí, Eliminar Abono"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL EDITAR ABONO SALIDA --- */}
+      {showEditAbonoModal && abonoToEdit && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "420px" }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 700 }}>Editar Abono — {abonoToEdit.clienteName}</h2>
+              <button className="close-btn" onClick={() => setShowEditAbonoModal(false)}><ChevronDown size={20} /></button>
+            </div>
+            <form onSubmit={handleEditAbonoSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label htmlFor="eabDate">Fecha del Abono</label>
+                  <input id="eabDate" type="date" value={editAbonoFecha} onChange={(e) => setEditAbonoFecha(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="eabUSD">Monto en Dólares ($)</label>
+                  <input id="eabUSD" type="number" step="any" min="0.01" value={editAbonoUSD} onChange={(e) => setEditAbonoUSD(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="eabVES">Monto en Bolívares (Informativo)</label>
+                  <input id="eabVES" type="number" step="any" placeholder="Opcional" value={editAbonoVES} onChange={(e) => setEditAbonoVES(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="eabRef">Referencia / Banco</label>
+                  <input id="eabRef" type="text" placeholder="Ej. Transf. #1234" value={editAbonoRef} onChange={(e) => setEditAbonoRef(e.target.value)} required />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditAbonoModal(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? "Guardando..." : "Guardar Cambios"}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

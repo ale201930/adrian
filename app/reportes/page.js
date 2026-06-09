@@ -572,278 +572,202 @@ export default function ReportesPage() {
       <div style={{ height: 0, overflow: "hidden", position: "absolute", pointerEvents: "none" }}>
         <div id="pdf-report-content" style={{
           width: "750px",
-          padding: "35px",
+          padding: "0",
           backgroundColor: "#ffffff",
           color: "#1f2937",
-          fontFamily: "'Inter', sans-serif",
+          fontFamily: "Arial, sans-serif",
           boxSizing: "border-box"
         }}>
-          {/* Encabezado Profesional */}
-          <div style={{
-            borderBottom: "1.5px solid #e2e8f0",
-            paddingBottom: "15px",
-            marginBottom: "25px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end"
-          }}>
-            <div>
-              <span style={{ 
-                fontSize: "10px", 
-                fontWeight: "600", 
-                color: "#6366f1", 
-                letterSpacing: "0.1em", 
-                textTransform: "uppercase" 
-              }}>
-                Sistema de Control y Finanzas
-              </span>
-              <h1 style={{
-                fontSize: "18px",
-                fontWeight: "800",
-                color: "#0f172a",
-                margin: "4px 0 0 0",
-                background: "none",
-                WebkitTextFillColor: "initial"
-              }}>
-                {activeTab === "cobrar" && "REPORTE: CUENTAS POR COBRAR (CLIENTES)"}
-                {activeTab === "pagar" && "REPORTE: CUENTAS POR PAGAR (PROVEEDORES)"}
-                {activeTab === "vendedores" && "REPORTE: RENDIMIENTO DE VENTAS POR VENDEDOR"}
-              </h1>
+
+          {/* ENCABEZADO OSCURO */}
+          <div style={{ backgroundColor: "#1e2a3a", padding: "28px 35px 22px 35px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: "22px", fontWeight: "800", color: "#ffffff", marginBottom: "4px" }}>
+                  SISTEMA DE INVENTARIO
+                </div>
+                <div style={{ fontSize: "11px", color: "#94a3b8", fontWeight: "500", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {activeTab === "cobrar" && "Control de Cuentas por Cobrar — Clientes"}
+                  {activeTab === "pagar" && "Control de Cuentas por Pagar — Proveedores"}
+                  {activeTab === "vendedores" && "Reporte de Rendimiento — Ventas por Vendedor"}
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "4px" }}>Fecha de Emisión</div>
+                <div style={{ fontSize: "13px", fontWeight: "700", color: "#e2e8f0" }}>
+                  {new Date().toLocaleDateString("es-VE", { year: "numeric", month: "long", day: "numeric" })}
+                </div>
+                <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
+                  {new Date().toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })} hrs
+                </div>
+              </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <span style={{ fontSize: "11px", color: "#64748b" }}>
-                Emitido el: <strong>{new Date().toLocaleDateString("es-VE", { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+            <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", gap: "24px" }}>
+              <span style={{ fontSize: "11px", color: "#cbd5e1" }}>
+                <span style={{ color: "#94a3b8" }}>Total General: </span>
+                <span style={{ color: "#ffffff", fontWeight: "700" }}>
+                  {activeTab === "cobrar" && `$${totalCobrar.toFixed(2)}`}
+                  {activeTab === "pagar" && `$${totalPagar.toFixed(2)}`}
+                  {activeTab === "vendedores" && `$${totalVendido.toFixed(2)}`}
+                </span>
+              </span>
+              <span style={{ fontSize: "11px", color: "#cbd5e1" }}>
+                <span style={{ color: "#94a3b8" }}>Registros: </span>
+                <span style={{ color: "#ffffff", fontWeight: "700" }}>
+                  {activeTab === "cobrar" && clientDebts.length}
+                  {activeTab === "pagar" && supplierDebts.length}
+                  {activeTab === "vendedores" && sellerSales.length}
+                </span>
               </span>
             </div>
           </div>
 
-          {/* Contenido según la pestaña activa */}
-          {activeTab === "cobrar" && (
-            <div>
-              {/* Tarjeta de Resumen */}
-              <div style={{
-                backgroundColor: "#f8fafc",
-                borderLeft: "4px solid #10b981",
-                borderTop: "1px solid #e2e8f0",
-                borderRight: "1px solid #e2e8f0",
-                borderBottom: "1px solid #e2e8f0",
-                padding: "16px 20px",
-                borderRadius: "8px",
-                marginBottom: "25px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}>
-                <div>
-                  <span style={{ fontSize: "10px", fontWeight: "600", color: "#64748b", letterSpacing: "0.05em", textTransform: "uppercase" }}>Balance General</span>
-                  <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a", margin: "4px 0 0 0" }}>CUENTAS POR COBRAR</h3>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "500", color: "#64748b" }}>Total Adeudado General</span>
-                  <div style={{ fontSize: "24px", fontWeight: "800", color: "#10b981", margin: "2px 0 0 0" }}>${totalCobrar.toFixed(2)}</div>
-                </div>
-              </div>
+          {/* CONTENIDO */}
+          <div style={{ padding: "28px 35px" }}>
 
-              {/* Listado de Clientes con sus Facturas */}
-              {clientDebts.length === 0 ? (
-                <p style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>No hay cuentas pendientes por cobrar de ningún cliente.</p>
-              ) : (
-                clientDebts.map((client, idx) => (
-                  <div key={idx} style={{ 
-                    marginBottom: "25px", 
-                    border: "1px solid #e2e8f0", 
-                    borderRadius: "8px", 
-                    overflow: "hidden", 
-                    pageBreakInside: "avoid",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
-                  }}>
-                    {/* Barra de título del cliente */}
-                    <div style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      backgroundColor: "#f8fafc",
-                      padding: "10px 16px",
-                      borderBottom: "1px solid #e2e8f0"
-                    }}>
-                      <span style={{ fontSize: "13px", fontWeight: "700", color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
-                        👤 {client.name}
-                      </span>
-                      <span style={{
-                        fontSize: "12px",
-                        fontWeight: "700",
-                        color: "#b91c1c",
-                        backgroundColor: "#fee2e2",
-                        padding: "3px 10px",
-                        borderRadius: "6px"
-                      }}>
-                        Saldo Adeudado: ${client.totalDebt.toFixed(2)}
-                      </span>
+            {/* COBRAR */}
+            {activeTab === "cobrar" && (
+              <div>
+                {clientDebts.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>No hay cuentas pendientes.</p>
+                ) : (
+                  clientDebts.map((client, idx) => (
+                    <div key={idx} style={{ marginBottom: "22px", border: "1px solid #e2e8f0", borderRadius: "6px", overflow: "hidden", pageBreakInside: "avoid" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#1e2a3a", padding: "8px 14px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: "700", color: "#ffffff" }}>👤 {client.name}</span>
+                        <span style={{ fontSize: "11px", fontWeight: "700", color: "#ffffff", backgroundColor: "#dc2626", padding: "2px 10px", borderRadius: "4px" }}>
+                          Saldo: ${client.totalDebt.toFixed(2)}
+                        </span>
+                      </div>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                        <thead>
+                          <tr style={{ backgroundColor: "#06b6d4" }}>
+                            <th style={{ padding: "7px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Fecha</th>
+                            <th style={{ padding: "7px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Factura / Guía #</th>
+                            <th style={{ padding: "7px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Monto Total ($)</th>
+                            <th style={{ padding: "7px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Saldo Adeudado ($)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {client.invoices.map((inv, invIdx) => (
+                            <tr key={inv.id} style={{ borderBottom: invIdx === client.invoices.length - 1 ? "none" : "1px solid #f1f5f9", backgroundColor: invIdx % 2 === 0 ? "#ffffff" : "#f8fafc" }}>
+                              <td style={{ padding: "7px 14px", color: "#475569" }}>{inv.fecha}</td>
+                              <td style={{ padding: "7px 14px", color: "#0f172a", fontWeight: "500" }}>{inv.invoiceNumber}</td>
+                              <td style={{ padding: "7px 14px", color: "#475569", textAlign: "right" }}>${inv.total.toFixed(2)}</td>
+                              <td style={{ padding: "7px 14px", color: "#dc2626", fontWeight: "700", textAlign: "right" }}>${inv.remaining.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    
+                  ))
+                )}
+                {clientDebts.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
+                    <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "10px 18px", textAlign: "right" }}>
+                      <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "600", textTransform: "uppercase" }}>Total General por Cobrar</div>
+                      <div style={{ fontSize: "20px", fontWeight: "800", color: "#dc2626", marginTop: "2px" }}>${totalCobrar.toFixed(2)}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PAGAR */}
+            {activeTab === "pagar" && (
+              <div>
+                {supplierDebts.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>No hay deudas pendientes con proveedores.</p>
+                ) : (
+                  <div style={{ border: "1px solid #e2e8f0", borderRadius: "6px", overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
                       <thead>
-                        <tr style={{ borderBottom: "1px solid #e2e8f0", color: "#475569", textAlign: "left", backgroundColor: "#ffffff" }}>
-                          <th style={{ padding: "8px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha de Emisión</th>
-                          <th style={{ padding: "8px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Factura / Guía #</th>
-                          <th style={{ padding: "8px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Monto Total ($)</th>
-                          <th style={{ padding: "8px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Saldo Adeudado ($)</th>
+                        <tr style={{ backgroundColor: "#06b6d4" }}>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Fecha</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Factura #</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Productos</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Total ($)</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Saldo ($)</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {client.invoices.map((inv, invIdx) => (
-                          <tr key={inv.id} style={{ 
-                            borderBottom: invIdx === client.invoices.length - 1 ? "none" : "1px solid #f1f5f9",
-                            backgroundColor: invIdx % 2 === 0 ? "#ffffff" : "#f8fafc"
-                          }}>
-                            <td style={{ padding: "8px 16px", color: "#475569" }}>{inv.fecha}</td>
-                            <td style={{ padding: "8px 16px", color: "#0f172a", fontWeight: "500" }}>{inv.invoiceNumber}</td>
-                            <td style={{ padding: "8px 16px", color: "#475569", textAlign: "right" }}>${inv.total.toFixed(2)}</td>
-                            <td style={{ padding: "8px 16px", color: "#b91c1c", fontWeight: "600", textAlign: "right" }}>${inv.remaining.toFixed(2)}</td>
+                        {supplierDebts.map((ent, idx) => (
+                          <tr key={idx} style={{ borderBottom: idx === supplierDebts.length - 1 ? "none" : "1px solid #f1f5f9", backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc" }}>
+                            <td style={{ padding: "7px 14px", color: "#475569" }}>{ent.fecha}</td>
+                            <td style={{ padding: "7px 14px", color: "#0f172a", fontWeight: "600" }}>{ent.numeroFactura}</td>
+                            <td style={{ padding: "7px 14px", color: "#475569", fontSize: "10px", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {ent.items?.map(i => `${i.cantidad} ${i.unidad}(s) de ${i.producto}`).join(", ")}
+                            </td>
+                            <td style={{ padding: "7px 14px", color: "#475569", textAlign: "right" }}>${ent.totalFactura.toFixed(2)}</td>
+                            <td style={{ padding: "7px 14px", color: "#dc2626", fontWeight: "700", textAlign: "right" }}>${ent.saldoAdeudado.toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {activeTab === "pagar" && (
-            <div>
-              {/* Tarjeta de Resumen */}
-              <div style={{
-                backgroundColor: "#f8fafc",
-                borderLeft: "4px solid #ef4444",
-                borderTop: "1px solid #e2e8f0",
-                borderRight: "1px solid #e2e8f0",
-                borderBottom: "1px solid #e2e8f0",
-                padding: "16px 20px",
-                borderRadius: "8px",
-                marginBottom: "25px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}>
-                <div>
-                  <span style={{ fontSize: "10px", fontWeight: "600", color: "#64748b", letterSpacing: "0.05em", textTransform: "uppercase" }}>Obligaciones</span>
-                  <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a", margin: "4px 0 0 0" }}>CUENTAS POR PAGAR</h3>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "500", color: "#64748b" }}>Total por Pagar</span>
-                  <div style={{ fontSize: "24px", fontWeight: "800", color: "#ef4444", margin: "2px 0 0 0" }}>${totalPagar.toFixed(2)}</div>
-                </div>
+                )}
+                {supplierDebts.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
+                    <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "10px 18px", textAlign: "right" }}>
+                      <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "600", textTransform: "uppercase" }}>Total por Pagar</div>
+                      <div style={{ fontSize: "20px", fontWeight: "800", color: "#dc2626", marginTop: "2px" }}>${totalPagar.toFixed(2)}</div>
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
 
-              {supplierDebts.length === 0 ? (
-                <p style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>No tienes deudas pendientes con ningún proveedor.</p>
-              ) : (
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.02)", pageBreakInside: "avoid" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0", color: "#475569", textAlign: "left", backgroundColor: "#f8fafc" }}>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha</th>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Factura #</th>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Productos / Items</th>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Total Facturado ($)</th>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Saldo Adeudado ($)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {supplierDebts.map((ent, idx) => (
-                        <tr key={idx} style={{ 
-                          borderBottom: idx === supplierDebts.length - 1 ? "none" : "1px solid #f1f5f9",
-                          backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc"
-                        }}>
-                          <td style={{ padding: "10px 16px", color: "#475569" }}>{ent.fecha}</td>
-                          <td style={{ padding: "10px 16px", color: "#0f172a", fontWeight: "600" }}>{ent.numeroFactura}</td>
-                          <td style={{ padding: "10px 16px", color: "#475569", fontSize: "10px", maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {ent.items?.map(i => `${i.cantidad} ${i.unidad}(s) de ${i.producto}`).join(", ")}
-                          </td>
-                          <td style={{ padding: "10px 16px", color: "#475569", textAlign: "right" }}>${ent.totalFactura.toFixed(2)}</td>
-                          <td style={{ padding: "10px 16px", color: "#ef4444", fontWeight: "700", textAlign: "right" }}>${ent.saldoAdeudado.toFixed(2)}</td>
+            {/* VENDEDORES */}
+            {activeTab === "vendedores" && (
+              <div>
+                {sellerSales.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>No hay ventas registradas.</p>
+                ) : (
+                  <div style={{ border: "1px solid #e2e8f0", borderRadius: "6px", overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#06b6d4" }}>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "left", fontSize: "10px", textTransform: "uppercase" }}>Vendedor</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "center", fontSize: "10px", textTransform: "uppercase" }}>Despachos</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>Total Facturado ($)</th>
+                          <th style={{ padding: "9px 14px", fontWeight: "700", color: "#ffffff", textAlign: "right", fontSize: "10px", textTransform: "uppercase" }}>% de Ventas</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === "vendedores" && (
-            <div>
-              {/* Tarjeta de Resumen */}
-              <div style={{
-                backgroundColor: "#f8fafc",
-                borderLeft: "4px solid #6366f1",
-                borderTop: "1px solid #e2e8f0",
-                borderRight: "1px solid #e2e8f0",
-                borderBottom: "1px solid #e2e8f0",
-                padding: "16px 20px",
-                borderRadius: "8px",
-                marginBottom: "25px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}>
-                <div>
-                  <span style={{ fontSize: "10px", fontWeight: "600", color: "#64748b", letterSpacing: "0.05em", textTransform: "uppercase" }}>Desempeño Comercial</span>
-                  <h3 style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a", margin: "4px 0 0 0" }}>DESPACHOS POR VENDEDOR</h3>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: "11px", fontWeight: "500", color: "#64748b" }}>Total Facturado</span>
-                  <div style={{ fontSize: "24px", fontWeight: "800", color: "#6366f1", margin: "2px 0 0 0" }}>${totalVendido.toFixed(2)}</div>
-                </div>
+                      </thead>
+                      <tbody>
+                        {sellerSales.map((seller, idx) => {
+                          const percent = totalVendido > 0 ? (seller.totalSales / totalVendido) * 100 : 0;
+                          return (
+                            <tr key={idx} style={{ borderBottom: idx === sellerSales.length - 1 ? "none" : "1px solid #f1f5f9", backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc" }}>
+                              <td style={{ padding: "8px 14px", color: "#0f172a", fontWeight: "600" }}>{seller.name}</td>
+                              <td style={{ padding: "8px 14px", color: "#475569", textAlign: "center" }}>{seller.transactionsCount}</td>
+                              <td style={{ padding: "8px 14px", color: "#166534", fontWeight: "700", textAlign: "right" }}>${seller.totalSales.toFixed(2)}</td>
+                              <td style={{ padding: "8px 14px", color: "#0f172a", fontWeight: "600", textAlign: "right" }}>{percent.toFixed(1)}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {sellerSales.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
+                    <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "10px 18px", textAlign: "right" }}>
+                      <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "600", textTransform: "uppercase" }}>Total Ventas Acumuladas</div>
+                      <div style={{ fontSize: "20px", fontWeight: "800", color: "#166534", marginTop: "2px" }}>${totalVendido.toFixed(2)}</div>
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
 
-              {sellerSales.length === 0 ? (
-                <p style={{ textAlign: "center", padding: "20px", color: "#6b7280" }}>No se han registrado ventas en el sistema.</p>
-              ) : (
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.02)", pageBreakInside: "avoid" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0", color: "#475569", textAlign: "left", backgroundColor: "#f8fafc" }}>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Vendedor</th>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Despachos Realizados</th>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Total Facturado ($)</th>
-                        <th style={{ padding: "10px 16px", fontWeight: "600", color: "#64748b", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Porcentaje de Ventas (%)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sellerSales.map((seller, idx) => {
-                        const percent = totalVendido > 0 ? (seller.totalSales / totalVendido) * 100 : 0;
-                        return (
-                          <tr key={idx} style={{ 
-                            borderBottom: idx === sellerSales.length - 1 ? "none" : "1px solid #f1f5f9",
-                            backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f8fafc"
-                          }}>
-                            <td style={{ padding: "10px 16px", color: "#0f172a", fontWeight: "600" }}>{seller.name}</td>
-                            <td style={{ padding: "10px 16px", color: "#475569" }}>{seller.transactionsCount} despacho(s)</td>
-                            <td style={{ padding: "10px 16px", color: "#166534", fontWeight: "700", textAlign: "right" }}>${seller.totalSales.toFixed(2)}</td>
-                            <td style={{ padding: "10px 16px", color: "#0f172a", fontWeight: "600", textAlign: "right" }}>{percent.toFixed(1)}%</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Pie de Página */}
-          <div style={{
-            marginTop: "40px",
-            borderTop: "1.5px solid #e2e8f0",
-            paddingTop: "15px",
-            textAlign: "center",
-            fontSize: "10px",
-            color: "#9ca3af"
-          }}>
-            Documento de Resumen Financiero Oficial
           </div>
+
+          {/* PIE DE PÁGINA */}
+          <div style={{ backgroundColor: "#1e2a3a", padding: "12px 35px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "9px", color: "#64748b" }}>Documento generado automáticamente — Sistema de Inventario</span>
+            <span style={{ fontSize: "9px", color: "#64748b" }}>{new Date().toLocaleDateString("es-VE")} · Confidencial</span>
+          </div>
+
         </div>
       </div>
     </>
